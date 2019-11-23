@@ -265,7 +265,7 @@ colormode(HSB)
 #coord = [(100.0,100.0),(500.0,100.0),(300.0,450.0)]
 #subdiv_triangle((0,1,2))
 zoom = 100.0
-translate(5*zoom,5*zoom)
+translate(4*zoom,4*zoom)
 p = zoom * sqrt(3)
 box = (2*zoom + 2*p, 2*zoom + 2*p)
 coord = [(zoom,0.0), (zoom+2*p,0.0), (zoom+p, zoom),
@@ -277,10 +277,11 @@ edge = 2*zoom
 edges = bond(coord,edge)
 triangles,squares,edgeneighbor = findrings(edges)
 
-coord = inflate(coord,edge,triangles,squares,1)
-edge *= 2*ratio
-edges = bond(coord,edge)
-triangles,squares,edgeneighbor = findrings(edges)
+# inflation
+#coord = inflate(coord,edge,triangles,squares,1)
+#edge *= 2*ratio
+#edges = bond(coord,edge)
+#triangles,squares,edgeneighbor = findrings(edges)
 
 #coord = inflate(coord,edge,triangles,squares,1)
 #edge *= 2*ratio
