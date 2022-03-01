@@ -5,7 +5,7 @@ import numpy as np
 import yaplotlib as yp
 import pairlist as pl
 import itertools as it
-from FrankKasper import toWater
+from genice.FrankKasper import toWater
 
 # dummy funcs
 HSB=0
@@ -85,7 +85,7 @@ def subdiv_square(v, edges):
         p1 = matrix12@p0
         p = coord[v[i]]+p1
         coord.append(np.array(p))
-        
+
 
 def hexagon(center,edge,parity):
     r = edge * ratio * 2.0
@@ -169,7 +169,7 @@ def bond3d(coord,thres,box):
                 if xyz@xyz < thres**2:
                     edges[j][i] = xyz
     return edges
-            
+
 
 SAMECOLOR = 1
 DIFFCOLOR = -1
@@ -234,7 +234,7 @@ def findrings(edges):
                                             dictoflist_add(edgeneighbor,(kk,kl),(i,j,SAMECOLOR))
                                             dictoflist_add(edgeneighbor,(jj,jl),(i,k,SAMECOLOR))
     return tr,sq,edgeneighbor
- 
+
 
 def inflate(coord,edgelen,edges,triangles,squares,depth):
     clen = len(coord)
@@ -314,7 +314,7 @@ def onelayer(coord,edgelen,edges,tr,sq,edgeneighbor,box):
             nostroke()
             fill(0)
             z = box[2]/2
-        else:            
+        else:
             stroke(0)
             nofill()
             z = 0.0
@@ -344,7 +344,7 @@ def onelayer(coord,edgelen,edges,tr,sq,edgeneighbor,box):
             nostroke()
             fill(0)
             z = box[2] / 2
-        else:            
+        else:
             stroke(0)
             nofill()
             z = 0.0
@@ -358,7 +358,7 @@ def onelayer(coord,edgelen,edges,tr,sq,edgeneighbor,box):
             nostroke()
             fill(0)
             z = box[2] / 2
-        else:            
+        else:
             stroke(0)
             nofill()
             z = 0.0
@@ -384,7 +384,7 @@ def tetrahedra(atoms,edges):
                                 if k in edges[j] and l in edges[j] and l in edges[k]:
                                     tets[i,j,k,l] = atoms[i] + (edges[i][j] + edges[i][k] + edges[i][l])/4.0
     return tets
-                                        
+
 
 def draw3d(atoms,edges):
     nofill()
@@ -439,16 +439,16 @@ def argparser(arg):
                                          (2*gglen+p,gglen+p),
                                          (0.0,p+2*gglen),
                                          (gglen+p,gglen+2*p)]]
-        
+
     edgelen = 2*gglen
     # connect nearest vertices
     edges = bond(coord,edgelen, box2)
     # connect to make shapes
     triangles,squares,edgeneighbor = findrings(edges)
-    
+
     # yaplot size
     R = 0.02
-    
+
     # inflation
     if arg == "1":
         coord = inflate(coord,edgelen,edges,triangles,squares,1)
@@ -458,16 +458,16 @@ def argparser(arg):
         R *= 2*ratio
         edges = bond(coord,edgelen,box2)
         triangles,squares,edgeneighbor = findrings(edges)
-    
+
     # print
     # print(triangles)
     #print(squares)
     #print(edgeneighbor)
     #print(coord)
-    
+
     #2d to 3d
     box3 = np.array([1.0, 1.0, boxz])
-    
+
     atoms = onelayer(coord,edgelen,edges,triangles,squares,edgeneighbor,box3)
     # double the layer (2 layers are minimum to define cages)
     N = atoms.shape[0]
@@ -493,15 +493,15 @@ def argparser(arg):
     #return
 
     atoms -= np.floor(atoms/box3)*box3
-    
-    
+
+
     edges = [dict() for i in range(len(atoms))]
     for i,j,d in pl.pairs_iter(atoms/box3, gglen*2*sqrt(19.0/48.0)*1.01, np.diag(box3)):
         d = wrap(atoms[j] - atoms[i], box3)
         edges[i][j] = d
         edges[j][i] = -d
     tets = tetrahedra(atoms,edges)
-        
+
     tetc = np.array(list(tets.values()))
     tetc -= np.floor(tetc/box3)*box3
 

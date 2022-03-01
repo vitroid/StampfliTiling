@@ -1,0 +1,6 @@
+*.pyc
+*.png
+*.svg
+.yapviewstack
+@
+__pycache__
