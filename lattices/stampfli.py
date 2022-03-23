@@ -1,66 +1,22 @@
+"""
+Approximant of a dodecagonal quasicrystal designed by Stampfli.
+"""
+
 # Put the initial vertex
 # subdivide with dodecagon and register new vertices
-from math import *
 import numpy as np
-import yaplotlib as yp
 import pairlist as pl
-import itertools as it
-from genice.FrankKasper import toWater
+from genice2.FrankKasper import toWater
+import genice2.lattices
+from logging import getLogger
+from math import pi, sin, cos, tan, sqrt
 
-# dummy funcs
-HSB = 0
-
-
-def nofill():
-    pass
-
-
-def stroke(*x):
-    pass
-
-
-def colormode(x):
-    pass
-
-
-def translate(x, y):
-    pass
-
-
-def oval(*a):
-    pass
-
-
-def nostroke(*a):
-    pass
-
-
-def fill(*a):
-    pass
-
-
-def line(*a):
-    pass
-
-
-def fontsize(*x):
-    pass
-
-
-def _mul(mat, vec):
-    return ((mat[0][0] * vec[0] + mat[0][1] * vec[1]),
-            (mat[1][0] * vec[0] + mat[1][1] * vec[1]))
-
-
-def _add(vec1, vec2):
-    return (vec1[0] + vec2[0], vec1[1] + vec2[1])
-
-
-def _sub(vec1, vec2):
-    v = [0] * len(vec1)
-    for i in range(len(vec1)):
-        v[i] = vec[1] - vec[2]
-    return v
+desc = {
+    "ref": {"stampfli": "Stampfli 1986"},
+    "usage": __doc__,
+    "brief": "Approximant of Stampfli's dodecagonal quasicrystal",
+    "test": ("[1]", "[2]",)
+}
 
 
 def wrap(c, box):
@@ -68,20 +24,7 @@ def wrap(c, box):
     return c - np.floor(c / box[:s] + 0.5) * box[:s]
 
 
-def _sub_pbc(vec1, vec2):
-    v = [0] * len(vec1)
-    for i in range(len(vec1)):
-        v[i] = vec1[i] - vec2[i]
-    return wrap(v)
-
-
-def drawpoly(coord):
-    for i in range(len(coord)):
-        line(coord[i - 1][0], coord[i - 1][1],
-             coord[i][0], coord[i][1])
-
-
-def subdiv_triangle(v, edges):
+def subdiv_triangle(v, edges, coord):
     for i in range(3):
         dijx, dijy = edges[v[i]][v[i - 1]]
         dikx, diky = edges[v[i]][v[i - 2]]
@@ -90,7 +33,7 @@ def subdiv_triangle(v, edges):
         coord.append(np.array(p))
 
 
-def subdiv_square(v, edges):
+def subdiv_square(v, edges, coord):
     for i in range(4):
         # relative diagonal vector of the square
         d = edges[v[i]][v[i - 1]] + edges[v[i - 1]][v[i - 2]]
@@ -102,7 +45,7 @@ def subdiv_square(v, edges):
         coord.append(np.array(p))
 
 
-def hexagon(center, edge, parity):
+def hexagon(center, edge, parity, coord):
     r = edge * ratio * 2.0
     for i in range(6):
         coord.append(
@@ -205,13 +148,29 @@ SAMECOLOR = 1
 DIFFCOLOR = -1
 
 
+
 def setcolors(en, ec, e, col):
+    queue = []
+    queue.append([en, e, col])
+
+    while len(queue) > 0:
+        en, e, col = queue.pop(0)
+        if e in ec:
+            continue
+        ec[e] = col
+        # print e,col
+        for i, j, parity in en[e]:
+            queue.append([en, (i, j), col * parity])
+
+
+
+def _setcolors(en, ec, e, col):
     if e in ec:
         return
     ec[e] = col
     # print e,col
     for i, j, parity in en[e]:
-        setcolors(en, ec, (i, j), col * parity)
+        _setcolors(en, ec, (i, j), col * parity)
 
 
 def findrings(edges):
@@ -291,16 +250,16 @@ def inflate(coord, edgelen, edges, triangles, squares, depth):
     if depth == 0:
         for i in range(clen):
             # ast number is the direction of hexagon
-            hexagon(coord[i], edgelen, 0)
+            hexagon(coord[i], edgelen, 0, coord)
     else:
         for i in range(clen):
             hexagon(
                 coord[i], edgelen, i %
-                2)  # ast number is the direction of hexagon
+                2, coord)  # ast number is the direction of hexagon
     for triangle in triangles:
-        subdiv_triangle(triangle, edges)
+        subdiv_triangle(triangle, edges, coord)
     for square in squares:
-        subdiv_square(square, edges)
+        subdiv_square(square, edges, coord)
     return coord
 
 
@@ -312,22 +271,14 @@ def onelayer(coord, edgelen, edges, tr, sq, edgeneighbor, box):
     """
     2D layer to 3D layer
     """
-    atoms = []
-    i = 0
+    ratoms = []
     for c in coord:
-        stroke(0)
-        nofill()
-        xy = wrap(c, box)
+        xy = c / box[:2]
+        xy -= np.floor(xy) 
         x, y = xy
-        oval(x - 4, y - 4, 8, 8)
-        nostroke()
-        fill(0)
-        oval(x - 2, y - 2, 4, 4)
-        #text("%s" % i,c[0],c[1] )
-        atoms.append((x, y, box[2] / 4))
-        atoms.append((x, y, box[2] * 3 / 4))
-        i += 1
-    # return
+        ratoms.append((x, y, 1 / 4))
+        ratoms.append((x, y, 3 / 4))
+
     edgecolors = dict()
     i = list(edges.keys())[0]
     j = list(edges[i].keys())[0]
@@ -341,54 +292,26 @@ def onelayer(coord, edgelen, edges, tr, sq, edgeneighbor, box):
                 # ij = (coord[i][0]+dx*0.5,
                 #      coord[i][1]+dy*0.5)
                 ij = coord[i] + edges[i][j] * 0.5
-                x, y = wrap(ij, box)
-                if edgecolors[(i, j)] == red:
-                    stroke(0)
-                    nofill()
-                    oval(x - 3, y - 3, 6, 6)
-                    atoms.append((x, y, 0.0))
-                    stroke(0, 1, 1)
+                xy = ij / box[:2]
+                xy -= np.floor(xy)
+                x, y = xy
+                if edgecolors[i, j] == red:
+                    ratoms.append((x, y, 0))
                 else:
-                    nostroke()
-                    fill(0)
-                    oval(x - 3, y - 3, 6, 6)
-                    atoms.append((x, y, box[2] / 2))
-                    stroke(0.666, 1, 1)
-                x, y = wrap(coord[i], box)
-                line(x, y, x + dx, y + dy)
+                    ratoms.append((x, y, 1 / 2))
     for i, j, k in tr:
-        #dijx,dijy = edges[i][j]
-        #dikx,diky = edges[i][k]
-        # center = (coord[i][0]+(dijx+dikx)/3,
-        #          coord[i][1]+(dijy+diky)/3)
         center = coord[i] + (edges[i][j] + edges[i][k]) / 3
-        x, y = wrap(center, box)
-        if edgecolors[(i, j)] == red:
-            nostroke()
-            fill(0)
-            z = box[2] / 2
+        xy = center / box[:2]
+        xy -= np.floor(xy)
+        x, y = xy
+        if edgecolors[i, j] == red:
+            z = 1 / 2
         else:
-            stroke(0)
-            nofill()
-            z = 0.0
-        oval(x - 3, y - 3, 6, 6)
-        atoms.append((x, y, z))
-        #text("(%s,%s,%s)" % (i,j,k), center[0]+5,center[1]+5)
-        #print (i,j,k),center
+            z = 0
+        ratoms.append((x, y, z))
     for i, j, l, k in sq:
         p = 3.0 / 8.0
         q = 1.0 / 8.0
-        #dijx,dijy = edges[i][j]
-        #dikx,diky = edges[i][k]
-        #dilx,dily = dijx+dikx, dijy+diky
-        # ij = (coord[i][0] + dijx*p + dikx*q + dilx*q,
-        #      coord[i][1] + dijy*p + diky*q + dily*q)
-        # ik = (coord[i][0] + dijx*q + dikx*p + dilx*q,
-        #      coord[i][1] + dijy*q + diky*p + dily*q)
-        # jl = (coord[i][0] + dijx*p + dikx*q + dilx*p,
-        #      coord[i][1] + dijy*p + diky*q + dily*p)
-        # kl = (coord[i][0] + dijx*q + dikx*p + dilx*p,
-        #      coord[i][1] + dijy*q + diky*p + dily*p)
         ij = coord[i] + edges[i][j] * p + edges[i][k] * \
             q + (edges[i][j] + edges[i][k]) * q
         ik = coord[i] + edges[i][j] * q + edges[i][k] * \
@@ -398,35 +321,30 @@ def onelayer(coord, edgelen, edges, tr, sq, edgeneighbor, box):
         kl = coord[i] + edges[i][j] * q + edges[i][k] * \
             p + (edges[i][j] + edges[i][k]) * p
         if edgecolors[(i, j)] == red:
-            nostroke()
-            fill(0)
-            z = box[2] / 2
+            z = 1 / 2
         else:
-            stroke(0)
-            nofill()
             z = 0.0
-        x, y = wrap(ij, box)
-        oval(x - 3, y - 3, 6, 6)
-        atoms.append((x, y, z))
-        x, y = wrap(kl, box)
-        oval(x - 3, y - 3, 6, 6)
-        atoms.append((x, y, z))
-        if edgecolors[(i, j)] == blue:
-            nostroke()
-            fill(0)
-            z = box[2] / 2
+        xy = ij / box[:2]
+        xy -= np.floor(xy)
+        x, y = xy
+        ratoms.append((x, y, z))
+        xy = kl / box[:2]
+        xy -= np.floor(xy)
+        x, y = xy
+        ratoms.append((x, y, z))
+        if edgecolors[i, j] == blue:
+            z = 1 / 2
         else:
-            stroke(0)
-            nofill()
             z = 0.0
-        x, y = wrap(ik, box)
-        oval(x - 3, y - 3, 6, 6)
-        atoms.append((x, y, z))
-        x, y = wrap(jl, box)
-        oval(x - 3, y - 3, 6, 6)
-        atoms.append((x, y, z))
-        #text("%s" % len(atoms), x,y)
-    return np.array(atoms)
+        xy = ik / box[:2]
+        xy -= np.floor(xy)
+        x, y = xy
+        ratoms.append((x, y, z))
+        xy = jl / box[:2]
+        xy -= np.floor(xy)
+        x, y = xy
+        ratoms.append((x, y, z))
+    return np.array(ratoms) * box
 
 
 def tetrahedra(atoms, edges):
@@ -444,30 +362,6 @@ def tetrahedra(atoms, edges):
     return tets
 
 
-def draw3d(atoms, edges):
-    nofill()
-    hue = 0.0
-    for i in edges:
-        print(i, len(edges[i]), edges[i].keys())
-        for j in edges[i]:
-            dx, dy, dz = edges[i][j]
-            stroke(hue, 1, 1)
-            line(atoms[i][0] + atoms[i][2] * 0.03,
-                 atoms[i][1] + atoms[i][2] * 0.09,
-                 atoms[i][0] + dx + (atoms[i][2] + dz) * 0.03,
-                 atoms[i][1] + dy + (atoms[i][2] + dz) * 0.09)
-            hue += (sqrt(5.0) - 1.0) / 2
-            hue %= 1.0
-    nostroke()
-    i = 0
-    for x, y, z in atoms:
-        x += z * 0.03
-        y += z * 0.09
-        fill(0, 1, 1)
-        oval(x - 5, y - 5, 10, 10)
-        fill(0, 1, 0)
-        text("%s" % i, x, y)
-        i += 1
 
 
 triangle_top = 0
@@ -481,124 +375,86 @@ matrix12 = ((cos(theta * 2), sin(theta * 2)),
             (-sin(theta * 2), cos(theta * 2)))
 
 
-def argparser(arg):
-    global coord, cell, waters, bondlen, density, cages
-    gglen = 1.0 / (2 + 2 * sqrt(3))
+class Lattice(genice2.lattices.Lattice):
+    def __init__(self, **kwargs):
+        logger = getLogger()
+        assert len(kwargs) > 0, desc["usage"]
 
-    p = gglen * sqrt(3)
-    box2 = np.array([1.0, 1.0])
-    boxz = box2[0] / sqrt(2) / 23.18 * 24.29 / 2.0
-    # Archimede tiling
-    coord = [np.array([x, y]) for x, y in [(gglen, 0.0),
-                                           (gglen + 2 * p, 0.0),
-                                           (gglen + p, gglen),
-                                           (0.0, p),
-                                           (p, gglen + p),
-                                           (2 * gglen + p, gglen + p),
-                                           (0.0, p + 2 * gglen),
-                                           (gglen + p, gglen + 2 * p)]]
+        self.gen = 1
+        for k, v in kwargs.items():
+            if k == 'generation':
+                self.gen = int(v)
+            elif v:  # in case only the char string is given
+                self.gen = int(k)
+            else:
+                logger.error(f"Unknown option for stampfli plugin: {k}={v}")
 
-    edgelen = 2 * gglen
-    # connect nearest vertices
-    edges = bond(coord, edgelen, box2)
-    # connect to make shapes
-    triangles, squares, edgeneighbor = findrings(edges)
+        gglen = 1.0 / (2 + 2 * sqrt(3))
 
-    # yaplot size
-    R = 0.02
+        p = gglen * sqrt(3)
+        box2 = np.array([1.0, 1.0])
+        boxz = box2[0] / sqrt(2) / 23.18 * 24.29 / 2.0
+        # Archimede tiling
+        coord = [np.array([x, y]) for x, y in [(gglen, 0.0),
+                                            (gglen + 2 * p, 0.0),
+                                            (gglen + p, gglen),
+                                            (0.0, p),
+                                            (p, gglen + p),
+                                            (2 * gglen + p, gglen + p),
+                                            (0.0, p + 2 * gglen),
+                                            (gglen + p, gglen + 2 * p)]]
 
-    # inflation
-    if arg == "1":
-        coord = inflate(coord, edgelen, edges, triangles, squares, 1)
-        edgelen *= 2 * ratio
-        gglen *= 2 * ratio
-        boxz *= (2 * ratio)
-        R *= 2 * ratio
+        edgelen = 2 * gglen
+        # connect nearest vertices
         edges = bond(coord, edgelen, box2)
+        # connect to make shapes
         triangles, squares, edgeneighbor = findrings(edges)
 
-    # print
-    # print(triangles)
-    # print(squares)
-    # print(edgeneighbor)
-    # print(coord)
+        # inflation
+        for gen in range(self.gen):
+            coord = inflate(coord, edgelen, edges, triangles, squares, 1)
+            edgelen *= 2 * ratio
+            gglen *= 2 * ratio
+            boxz *= (2 * ratio)
+            # R *= 2 * ratio
+            edges = bond(coord, edgelen, box2)
+            triangles, squares, edgeneighbor = findrings(edges)
 
-    # 2d to 3d
-    box3 = np.array([1.0, 1.0, boxz])
+        # 2d to 3d
+        box3 = np.array([1.0, 1.0, boxz])
 
-    atoms = onelayer(
-        coord,
-        edgelen,
-        edges,
-        triangles,
-        squares,
-        edgeneighbor,
-        box3)
-    # double the layer (2 layers are minimum to define cages)
-    N = atoms.shape[0]
-    a = np.zeros([N * 2, 3])
-    a[:N] = atoms
-    a[N:] = atoms + np.array([0, 0, box3[2]])
-    atoms = a
-    box3[2] *= 2
+        atoms = onelayer(
+            coord,
+            edgelen,
+            edges,
+            triangles,
+            squares,
+            edgeneighbor,
+            box3)
+        # double the layer (2 layers are minimum to define cages)
+        atoms = np.vstack([atoms, atoms + np.array([0, 0, box3[2]])])
+        box3[2] *= 2
 
-    # use toWater
-    #atoms /= box3
-    #atoms -= np.floor(atoms+0.5)
-    #waters = np.array([w for w in toWater(atoms, np.diag(box3), tolerance=1.7)])
-    # for GenIce
-    #box3 *= 2.76 / (gglen*0.5)
-    # coord="relative"
-    #cell = np.diag(box3)
-    #bondlen = 3
-    # density=0.8
-    #cages = ""
-    # for atom in atoms:
-    #    cages += "{0} {1} {2} {3}\n".format("cage", *atom)
-    # return
+        atoms -= np.floor(atoms / box3) * box3
 
-    atoms -= np.floor(atoms / box3) * box3
+        edges = [dict() for i in range(len(atoms))]
+        for i, j, d in pl.pairs_iter(
+                atoms / box3, gglen * 2 * sqrt(19.0 / 48.0) * 1.01, np.diag(box3)):
+            d = wrap(atoms[j] - atoms[i], box3)
+            edges[i][j] = d
+            edges[j][i] = -d
+        tets = tetrahedra(atoms, edges)
 
-    edges = [dict() for i in range(len(atoms))]
-    for i, j, d in pl.pairs_iter(
-            atoms / box3, gglen * 2 * sqrt(19.0 / 48.0) * 1.01, np.diag(box3)):
-        d = wrap(atoms[j] - atoms[i], box3)
-        edges[i][j] = d
-        edges[j][i] = -d
-    tets = tetrahedra(atoms, edges)
+        tetc = np.array(list(tets.values()))
+        tetc -= np.floor(tetc / box3) * box3
 
-    tetc = np.array(list(tets.values()))
-    tetc -= np.floor(tetc / box3) * box3
+        box3 *= 2.76 / (gglen * 0.5)
 
-    # reduce cell size
-    # The original (level 0) structure is sqrt2 x sqrt2 of TS1 because it was generated from cage layout and it was minimal unit cell
-    # Here we reduce the cell by clipping the central part of the cell
-    #newbox = box3 / np.array([2**0.5, 2**0.5, 1.0])
-    #N = tetc.shape[0]
-    #tetc2 = np.zeros([N*2,3])
-    #tetc2[:N] = tetc
-    #tetc2[N:] = tetc - np.array([0.0, box3[1], 0.0])
-    # rotate 45 degree
-    #tetc2 = tetc2 @ np.array([[2**0.5/2,2**0.5/2, 0.0], [-(2**0.5)/2, 2**0.5/2, 0.0], [0.0, 0.0, 1.0]])
-    #tetc2 -= np.array([1e-4,1e-4,0])
-    #N2 = 0
-    #newtetc = []
-    # for i in range(N*2):
-    #    if 0 <= tetc2[i,0] < newbox[0] and 0 <= tetc2[i,1] < newbox[1]:
-    #        N2 += 1
-    #        newtetc.append(tetc2[i])
-    #assert N2 == N/2
-    #box3 = newbox
-    #tetc = np.array(newtetc)
-
-    box3 *= 2.76 / (gglen * 0.5)
-
-    # for GenIce
-    waters = tetc * 2.76 / (gglen * 0.5)
-    coord = "absolute"
-    cell = np.diag(box3)
-    bondlen = 3
-    density = 0.8
+        # for GenIce
+        self.waters = tetc * 2.76 / (gglen * 0.5)
+        self.coord = "absolute"
+        self.cell = np.diag(box3)
+        self.bondlen = 3
+        self.density = 0.8
 
 
-argparser("0")
