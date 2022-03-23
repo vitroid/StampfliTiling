@@ -7,6 +7,8 @@ name = "pypi"
 genice2 = "*"
 
 [dev-packages]
+twine = "*"
+genice2-cage = "*"
 
 [requires]
 python_version = "3.9"

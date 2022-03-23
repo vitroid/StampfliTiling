@@ -19,6 +19,7 @@ desc = {
 }
 
 
+
 def wrap(c, box):
     s = c.shape[0]
     return c - np.floor(c / box[:s] + 0.5) * box[:s]
@@ -378,16 +379,16 @@ matrix12 = ((cos(theta * 2), sin(theta * 2)),
 class Lattice(genice2.lattices.Lattice):
     def __init__(self, **kwargs):
         logger = getLogger()
-        assert len(kwargs) > 0, desc["usage"]
 
         self.gen = 1
-        for k, v in kwargs.items():
-            if k == 'generation':
-                self.gen = int(v)
-            elif v:  # in case only the char string is given
-                self.gen = int(k)
-            else:
-                logger.error(f"Unknown option for stampfli plugin: {k}={v}")
+        if len(kwargs) > 0:
+            for k, v in kwargs.items():
+                if k == 'generation':
+                    self.gen = int(v)
+                elif v:  # in case only the char string is given
+                    self.gen = int(k)
+                else:
+                    logger.error(f"Unknown option for stampfli plugin: {k}={v}")
 
         gglen = 1.0 / (2 + 2 * sqrt(3))
 
